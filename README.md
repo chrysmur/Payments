@@ -1,2 +1,5 @@
 # Payments
-Method method.
+Payment methods using 
+- Stripe.js
+- Flutterwave
+- MPesa
