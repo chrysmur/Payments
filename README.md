@@ -1,0 +1,2 @@
+# Payments
+Method method.
