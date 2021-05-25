@@ -4,11 +4,13 @@ class MpesaController {
   static pay = (req, res) => {
     let { amount, phone } = req.body;
     MpesaServices.handleLNM(amount, phone)
-    // console.log("in controle", req.body)
-    // res.send({
-    //     success:true,
-    //     message:"Got to control"
-    // })
+        .then(resp => {
+            console.log("controller", resp)
+            MpesaServices.handleLMNResponse(resp)
+        })
+        .catch(err => {
+            console.log(err)
+        })
   };
 }
 export default MpesaController;

@@ -1,8 +1,12 @@
 import axios from "axios";
 import https from "https";
+import { type } from "os";
 /**
  * Handling the Daraja API
  */
+
+// store transactions locally
+const localCache = [];
 class MpesaServices {
   static async getAT() {
     var getOptions = {
@@ -32,15 +36,18 @@ class MpesaServices {
   }
   static generateTimestamp() {
     // API expects time stamp of the format YYYYMMDDHHMMSS
+    const cleanDate = (e) => {
+      return e < 10 ? "0" + e : e;
+    };
     let currentDate = new Date();
     let currentTime = new Date(
       currentDate.toLocaleString("en-us", { timeZone: "Africa/Nairobi" })
     );
-    let month = currentTime.getMonth() + 1;
-    let date = currentTime.getDate();
-    let hour = currentTime.getHours();
-    let minutes = currentTime.getMinutes();
-    let seconds = currentTime.getSeconds();
+    let month = cleanDate(currentTime.getMonth() + 1);
+    let date = cleanDate(currentTime.getDate());
+    let hour = cleanDate(currentTime.getHours());
+    let minutes = cleanDate(currentTime.getMinutes());
+    let seconds = cleanDate(currentTime.getSeconds());
 
     return (
       currentTime.getFullYear() +
@@ -57,23 +64,23 @@ class MpesaServices {
     );
   }
   static async handleLNM(amount, phone) {
-      console.log(this.generateTimestamp())
     const postBody = JSON.stringify({
       BusinessShortCode: process.env.SHORTCODE,
       Password: Buffer.from(
-        process.env.SC + process.env.PASSKEY + this.generateTimestamp()
+        process.env.SHORTCODE + process.env.PASSKEY + this.generateTimestamp()
       ).toString("base64"),
-      TimeStamp: this.generateTimestamp(),
+      Timestamp: this.generateTimestamp(),
       TransactionType: "CustomerPayBillOnline",
       Amount: amount,
-      PartyA: process.env.SHORTCODE,
+      PartyA: phone,
+      PartyB: process.env.SHORTCODE,
       PhoneNumber: phone,
-      CallBackURL: "https://ngrok.adfasdf.com",
+      CallBackURL: "http://a02999cccb8e.ngrok.io",
       AccountReference: "LMNOnPow",
       TransactionDesc: "@SandboxTest",
     });
     //Verify the  AT
-    this.getAT()
+    await this.getAT()
       .then((resp) => {
         return resp["access_token"];
       })
@@ -91,23 +98,48 @@ class MpesaServices {
         };
         return new Promise((resolve, reject) => {
           let post = https.request(stkOptions, (resp) => {
-              console.log(resp)
             resp.setEncoding("utf-8");
             resp.on("data", (resp_data) => {
-                console.log(resp_data)
               resolve(JSON.parse(resp_data));
             });
             resp.on("error", (e) => {
-                reject(e)
+              reject(e);
             });
           });
-          post.write(postBody);
-          post.end();
+        //   post.write(postBody);
+        //   post.end();
         });
       })
-      .catch(err => {
-          console.log(err)
-      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }
+  static handleLMNResponse(resp) {
+      console.log(resp)
+    if (typeof resp.ResponseCode !== "undefined" && resp.ResponseCode === "0") {
+      let requestID = resp.MerchantRequestID;
+      let transactionObj = {
+        requestID,
+        phone,
+        amount,
+        callBackStatus: false,
+        status: "Pending Completion",
+      };
+      localCache.push(transactionObj);
+
+      let message = {
+        success: true,
+        requestID: resp.MerchantRequestID,
+      };
+      res.send(message);
+    } else {
+      let message = {
+        success: false,
+        status: "Error Handling STK",
+      };
+      res.status(501).send(message);
+    }
   }
 }
+
 export default MpesaServices;
