@@ -1,16 +1,14 @@
 import MpesaServices from "../services/mpesaService.js";
 
 class MpesaController {
-  static pay = (req, res) => {
-    let { amount, phone } = req.body;
-    MpesaServices.handleLNM(amount, phone)
-        .then(resp => {
-            console.log("controller", resp)
-            MpesaServices.handleLMNResponse(resp)
-        })
-        .catch(err => {
-            console.log(err)
-        })
+  static async pay (req, res) {
+    let message = await MpesaServices.handleLNM(req, res);
+    console.log("=----------------", message)
+    res.send(JSON.stringify(message))
+  };
+  static lnmResponse = (req, res) => {
+    MpesaServices.lmnResponse(req, res)      
+    
   };
 }
 export default MpesaController;
