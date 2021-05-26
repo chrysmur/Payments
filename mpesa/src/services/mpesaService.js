@@ -90,7 +90,7 @@ class MpesaServices {
       PartyB: process.env.SHORTCODE,
       PhoneNumber: phone,
       CallBackURL: process.env.CALLBACK,
-      AccountReference: "LMNOnPow",
+      AccountReference: "LMNOnLoc",
       TransactionDesc: "@SandboxTest",
     });
     //Verify the  AT
