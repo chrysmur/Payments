@@ -1,14 +1,17 @@
 import axios from "axios";
 import https from "https";
-import { type } from "os";
+import { RedisClient } from "redis";
+
+import MongoServices from "./mongoServices.js";
+import localCache from "./cacheServices.js";
 /**
  * Handling the Daraja API
  */
-
-// store transactions locally
-const localCache = [];
 class MpesaServices {
   static async getAT() {
+    /**
+     * @returns Promise with Auth Token
+     */
     var getOptions = {
       host: "sandbox.safaricom.co.ke",
       path: "/oauth/v1/generate?grant_type=client_credentials",
@@ -34,8 +37,13 @@ class MpesaServices {
         .end();
     });
   }
+
   static generateTimestamp() {
-    // API expects time stamp of the format YYYYMMDDHHMMSS
+    /**
+     *
+     * @param {*} e
+     * @returns timestamp of the format YYYYMMDDHHMMSS
+     */
     const cleanDate = (e) => {
       return e < 10 ? "0" + e : e;
     };
@@ -63,7 +71,13 @@ class MpesaServices {
       seconds
     );
   }
-  static async handleLNM(amount, phone) {
+  static async handleLNM(req, res) {
+    /**
+     * @param {req, res}
+     * @returns promise Handler for the API response
+     */
+    let { amount, phone } = req.body;
+
     const postBody = JSON.stringify({
       BusinessShortCode: process.env.SHORTCODE,
       Password: Buffer.from(
@@ -75,7 +89,7 @@ class MpesaServices {
       PartyA: phone,
       PartyB: process.env.SHORTCODE,
       PhoneNumber: phone,
-      CallBackURL: "http://a02999cccb8e.ngrok.io",
+      CallBackURL: process.env.CALLBACK,
       AccountReference: "LMNOnPow",
       TransactionDesc: "@SandboxTest",
     });
@@ -100,22 +114,28 @@ class MpesaServices {
           let post = https.request(stkOptions, (resp) => {
             resp.setEncoding("utf-8");
             resp.on("data", (resp_data) => {
-              resolve(JSON.parse(resp_data));
+              return resolve(JSON.parse(resp_data));
             });
             resp.on("error", (e) => {
               reject(e);
             });
           });
-        //   post.write(postBody);
-        //   post.end();
+          post.write(postBody);
+          post.end();
+        }).then((resp) => {
+          let resp_msg = this.handleLMNResponse(resp, phone, amount);
+          res.json(resp_msg)
         });
       })
       .catch((err) => {
         console.log(err);
       });
   }
-  static handleLMNResponse(resp) {
-      console.log(resp)
+  static handleLMNResponse(resp, phone, amount) {
+    /**
+     * @params {apiresp, phone, amount}
+     * @returns Success / failure message
+     */
     if (typeof resp.ResponseCode !== "undefined" && resp.ResponseCode === "0") {
       let requestID = resp.MerchantRequestID;
       let transactionObj = {
@@ -129,17 +149,51 @@ class MpesaServices {
 
       let message = {
         success: true,
-        requestID: resp.MerchantRequestID,
+        requestID,
       };
-      res.send(message);
+      return message;
     } else {
       let message = {
         success: false,
         status: "Error Handling STK",
       };
-      res.status(501).send(message);
+      return message;
     }
   }
-}
 
+  static async lmnResponse(req, res) {
+    /**
+     * @param {http req, res}
+     * @returns success on saving on mongo, failure
+     */
+    let requestID = req.body.Body.stkCallback.MerchantRequestID;
+    let resultCode = req.body.Body.stkCallback.ResultCode;
+    let status =
+      resultCode == "1031"
+        ? "Cancelled"
+        : resultCode == "1037"
+        ? "RequestTimeOut"
+        : resultCode == "0"
+        ? "Success"
+        : "Failed";
+
+    let resultDesc = req.body.Body.stkCallback.ResultDesc;
+    this.updateLocalCache(requestID, status, resultCode, resultDesc, res);
+  }
+
+  static updateLocalCache(requestID, status, resultCode, resultDesc, res) {
+    localCache.forEach((obj) => {
+      if (obj.requestID === requestID) {
+        obj.status = status;
+        obj.resultCode = resultCode;
+        obj.resultDesc = resultDesc;
+        MongoServices.save(res, obj);
+      } else {
+        let message = { ResponseCode: "0", ResponseDesc: "success" };
+        res.json(message);
+      }
+    });
+  }
+}
+export {localCache}
 export default MpesaServices;
