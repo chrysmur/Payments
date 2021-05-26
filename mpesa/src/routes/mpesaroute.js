@@ -19,4 +19,6 @@ const mpesaRoute = express.Router();
 
 mpesaRoute.post("/", Validator.payvalidator, MpesaController.pay);
 
+mpesaRoute.post("/hooks/lnmresponse", MpesaController.lnmResponse) //hook
+
 export { mpesaRoute };
