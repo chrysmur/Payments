@@ -5,7 +5,7 @@ import MpesaController from "../controllers/mpesaController.js"
 const mpesaRoute = express.Router();
 
 /**
- * @api {post} /api/pay Create user
+ * @api {post} /api/pay
  * @apiName Mpesa Payment
  * @apiPermission User
  * @apiGroup User
@@ -20,5 +20,7 @@ const mpesaRoute = express.Router();
 mpesaRoute.post("/", Validator.payvalidator, MpesaController.pay);
 
 mpesaRoute.post("/hooks/lnmresponse", MpesaController.lnmResponse) //hook
+
+mpesaRoute.post("/cbresponse", MpesaController.cacheResponse)
 
 export { mpesaRoute };

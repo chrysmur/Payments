@@ -1,8 +1,7 @@
 import axios from "axios";
 import https from "https";
-import { RedisClient } from "redis";
 
-import MongoServices from "./mongoServices.js";
+import DBServices from "./dbServices.js";
 import localCache from "./cacheServices.js";
 /**
  * Handling the Daraja API
@@ -124,7 +123,7 @@ class MpesaServices {
           post.end();
         }).then((resp) => {
           let resp_msg = this.handleLMNResponse(resp, phone, amount);
-          res.json(resp_msg)
+          res.json(resp_msg); //Talk to the FE
         });
       })
       .catch((err) => {
@@ -155,7 +154,7 @@ class MpesaServices {
     } else {
       let message = {
         success: false,
-        status: "Error Handling STK",
+        status: "Error Handling STK Push"
       };
       return message;
     }
@@ -178,22 +177,40 @@ class MpesaServices {
         : "Failed";
 
     let resultDesc = req.body.Body.stkCallback.ResultDesc;
-    this.updateLocalCache(requestID, status, resultCode, resultDesc, res);
+    const msg = this.updateLocalCache(requestID, status, resultCode, resultDesc, res)
+    if (msg) {
+      /* Store the data in  the db */
+      //DBServices.mongoSave(res, msg)
+    }
+    let message = {"ResponseCode": "0", "ResponseDesc": "success"}
+    console.log("Sending to safaricom",  message)
+    res.json(message)
+    
   }
 
+  static cacheResponse(req, res) {
+    console.log("------cacheresp", req.body)
+    let requestID = req.body.requestID
+    let resp_obj;
+    for (let obj of localCache){
+      if (obj.requestID === requestID) {
+        console.log(localCache, requestID)
+        resp_obj = obj
+      }
+    }
+    res.json({success:resp_obj? true: false, resp_obj})
+  }
   static updateLocalCache(requestID, status, resultCode, resultDesc, res) {
-    localCache.forEach((obj) => {
+    for (let obj of localCache){
       if (obj.requestID === requestID) {
         obj.status = status;
         obj.resultCode = resultCode;
         obj.resultDesc = resultDesc;
-        MongoServices.save(res, obj);
-      } else {
-        let message = { ResponseCode: "0", ResponseDesc: "success" };
-        res.json(message);
+        obj.callBackStatus= true
+        return obj
       }
-    });
+    }
   }
 }
-export {localCache}
+export { localCache };
 export default MpesaServices;
